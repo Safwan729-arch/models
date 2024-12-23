@@ -1,0 +1,3 @@
+My Model-- The model contains the code which executes the yoloV8n model that I have created. The model is not good and does not detect objects properly
+
+YoloV8n model-- This folder contains the code which executes the yoloV8n model. This model is good and does detect objects.

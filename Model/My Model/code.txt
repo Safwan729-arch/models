@@ -1,0 +1,111 @@
+from ultralytics import YOLO
+import sys
+import cv2
+import numpy as np
+from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget
+from PyQt5.QtCore import QTimer, QThread, pyqtSignal
+from PyQt5.QtGui import QImage, QPixmap
+
+# Load YOLOv8 model
+model = YOLO('D:/model/best.pt')
+
+
+class DetectionThread(QThread):
+    # Signal to update the frame in GUI
+    update_frame_signal = pyqtSignal(np.ndarray)
+
+    def _init(self, model):  # Corrected __init_
+        super()._init_()
+        self.model = model
+        self.capture = cv2.VideoCapture(0)  # Open webcam
+        if not self.capture.isOpened():
+            print("Error: Could not open webcam.")
+            self.capture.release()
+
+    def run(self):
+        while True:
+            ret, frame = self.capture.read()
+            if not ret:
+                continue
+
+            # Run YOLOv8 inference
+            results = self.model.predict(frame)
+            annotated_frame = results[0].plot()  # Get annotated frame
+
+            # Emit signal to update the frame in GUI
+            self.update_frame_signal.emit(annotated_frame)
+
+    def stop(self):
+        self.capture.release()
+        self.quit()
+
+
+class YOLOv8GUI(QMainWindow):
+    def _init(self):  # Corrected __init_
+        super()._init_()
+
+        # Load YOLOv8 model
+        self.model = model
+
+        # Set up the GUI
+        self.setWindowTitle("YOLOv8 Object Detection")
+        self.setGeometry(100, 100, 800, 600)
+
+        # Create start button
+        self.start_button = QPushButton("Start Detection")
+        self.start_button.clicked.connect(self.start_detection)
+
+        # Create stop button
+        self.stop_button = QPushButton("Stop Detection")
+        self.stop_button.clicked.connect(self.stop_detection)
+
+        # Create label for video feed
+        self.video_label = QLabel()
+        self.video_label.setFixedSize(800, 500)
+
+        # Arrange widgets in a vertical layout
+        layout = QVBoxLayout()
+        layout.addWidget(self.video_label)
+        layout.addWidget(self.start_button)
+        layout.addWidget(self.stop_button)
+
+        # Set main widget
+        container = QWidget()
+        container.setLayout(layout)
+        self.setCentralWidget(container)
+
+        # Timer for video feed updates
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_frame)
+
+        # Detection thread (for inference)
+        self.detection_thread = None
+
+    def start_detection(self):
+        # Create and start the detection thread
+        self.detection_thread = DetectionThread(self.model)
+        self.detection_thread.update_frame_signal.connect(self.update_frame)
+        self.detection_thread.start()
+
+    def stop_detection(self):
+        if self.detection_thread:
+            self.detection_thread.stop()
+            self.detection_thread = None
+        self.video_label.clear()
+
+    def update_frame(self, frame):
+        # Convert frame to QImage for display
+        rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb_image.shape
+        qimg = QImage(rgb_image.data, w, h, ch * w, QImage.Format_RGB888)
+
+        # Set the QPixmap to video label
+        self.video_label.setPixmap(QPixmap.fromImage(qimg))
+
+
+# Main application loop
+if _name_ == "_main":  # Corrected __name_
+    app = QApplication(sys.argv)
+    window = YOLOv8GUI()
+    window.show()
+    sys.exit(app.exec())

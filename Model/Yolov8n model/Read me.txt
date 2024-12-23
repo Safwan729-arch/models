@@ -1,0 +1,1 @@
+The code.txt file contains the code that runs the yoloV8n model successfully with a GUI made using pyQt5.
